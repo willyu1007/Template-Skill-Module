@@ -1,6 +1,33 @@
 {
   "version": 1,
   "moduleId": "project",
-  "updatedAt": "2025-12-30T07:15:45.853Z",
-  "artifacts": []
+  "updatedAt": "2026-02-19T09:14:22.752Z",
+  "artifacts": [
+    {
+      "artifactId": "api-openapi",
+      "type": "openapi",
+      "path": "docs/context/api/openapi.yaml",
+      "mode": "contract",
+      "format": "openapi-3.1",
+      "tags": [
+        "api"
+      ],
+      "checksumSha256": "b1f4259e1fdc755df4bcb248fe2a643137d25d305603f78ae81e9d5f73f46a36",
+      "lastUpdated": "2026-02-19T09:14:11.275Z"
+    },
+    {
+      "artifactId": "api-index",
+      "type": "json",
+      "path": "docs/context/api/api-index.json",
+      "mode": "generated",
+      "format": "api-index-v1",
+      "tags": [
+        "api",
+        "index",
+        "llm"
+      ],
+      "checksumSha256": "f361faf38d292d2deb70ee376f06d2fda9145a5b3baf6bf3a1f2780f59c857ee",
+      "lastUpdated": "2026-02-19T09:14:17.021Z"
+    }
+  ]
 }

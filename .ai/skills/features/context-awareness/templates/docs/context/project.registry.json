@@ -1,9 +1,10 @@
 {
   "version": 1,
+  "moduleId": "project",
   "updatedAt": "2026-01-22T00:00:00.000Z",
   "artifacts": [
     {
-      "id": "api-openapi",
+      "artifactId": "api-openapi",
       "type": "openapi",
       "path": "docs/context/api/openapi.yaml",
       "mode": "contract",
@@ -11,15 +12,29 @@
       "tags": [
         "api"
       ],
-      "checksumSha256": "52acc7009fb7b589902683847c529b985a6a855d7150a42364858e8209383316",
-      "lastUpdated": "2025-12-25T14:14:14Z",
       "source": {
         "kind": "manual",
         "notes": "Edit the contract file; then run ctl-context touch."
       }
     },
     {
-      "id": "bpmn-example",
+      "artifactId": "api-index",
+      "type": "json",
+      "path": "docs/context/api/api-index.json",
+      "mode": "generated",
+      "format": "api-index-v1",
+      "tags": [
+        "api",
+        "index",
+        "llm"
+      ],
+      "source": {
+        "kind": "command",
+        "notes": "node .ai/scripts/ctl-api-index.mjs generate --touch"
+      }
+    },
+    {
+      "artifactId": "bpmn-example",
       "type": "bpmn",
       "path": "docs/context/process/example.bpmn",
       "mode": "contract",
@@ -28,8 +43,6 @@
         "bpmn",
         "process"
       ],
-      "checksumSha256": "1276230573853c3e20487671a11679169426ecd61bff59cb8f73e44b130d6f82",
-      "lastUpdated": "2025-12-25T14:14:14Z",
       "source": {
         "kind": "manual",
         "notes": "Replace with real processes or add more .bpmn files; then run ctl-context touch."

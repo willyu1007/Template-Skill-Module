@@ -507,24 +507,29 @@ function cmdInit(repoRoot, dryRun) {
 
   // Create INDEX.md
   const indexPath = path.join(contextDir, 'INDEX.md');
-  const indexContent = `# Project context index
+  const indexContent = `# Project context index (LLM-first)
 
 This directory provides a **project-level** view of curated context artifacts.
 
 ## Important
 
-- \`docs/context/registry.json\` is a **DERIVED artifact**.
-  - Do not edit it by hand.
+- \`docs/context/registry.json\` is a **DERIVED artifact** — do not edit it by hand.
   - Regenerate it with: \`node .ai/skills/features/context-awareness/scripts/ctl-context.mjs build\`
 
 ## Sources of truth
 
 Project context is aggregated bottom-up from:
 
-1. Project-level registry (SSOT)
-   - \`docs/context/project.registry.json\`
-2. Module registries (SSOT)
-   - \`modules/<module_id>/interact/registry.json\`
+1. **Project-level registry (SSOT)**: \`docs/context/project.registry.json\`
+2. **Module registries (SSOT)**: \`modules/<module_id>/interact/registry.json\`
+
+## How to load context (for AI/LLM)
+
+1. Open \`docs/context/registry.json\` (derived, aggregated view).
+2. Read \`docs/context/api/api-index.json\` for a one-read API overview (grouped by module).
+3. [On demand] Read \`modules/<id>/interact/openapi.yaml\` for full endpoint definitions.
+4. Select only the additional artifacts needed for the current task.
+5. Open those files by path (do not scan folders).
 
 ## Rules
 

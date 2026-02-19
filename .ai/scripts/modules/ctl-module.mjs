@@ -48,6 +48,7 @@ Commands:
     --module-id <id>            Module id (kebab-case, e.g., billing-api)
     --module-type <type>        e.g., service|library|job (default: service)
     --description <text>        Optional
+    --with-openapi              Create minimal OpenAPI scaffold + register artifact
     --apply                     Actually write files (default: dry-run)
     --force                     Overwrite existing files (dangerous)
     Initialize a new module instance skeleton.
@@ -199,6 +200,7 @@ function cmdInit(repoRoot, opts) {
   const moduleId = opts['module-id'];
   const moduleType = opts['module-type'] || 'service';
   const description = opts['description'] || '';
+  const withOpenapi = !!opts['with-openapi'];
   const apply = !!opts['apply'];
   const force = !!opts['force'];
 
@@ -241,10 +243,37 @@ Recommended structure:
 For integration-related work, prefer writing in modules/integration/dev-docs/.
 `;
 
+  const registry = defaultModuleContextRegistry(moduleId);
+
+  if (withOpenapi) {
+    registry.artifacts.push({
+      artifactId: 'openapi',
+      type: 'openapi',
+      path: `modules/${moduleId}/interact/openapi.yaml`,
+      mode: 'contract',
+      format: 'openapi-3.1',
+      tags: ['api']
+    });
+
+    const openapiPath = path.join(moduleDir, 'interact', 'openapi.yaml');
+    const title = description || moduleId;
+    const yamlQuote = (s) => `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+    filesToWrite.push({
+      path: openapiPath,
+      content: `openapi: 3.1.0
+info:
+  title: ${yamlQuote(title)}
+  version: 0.1.0
+  description: ${yamlQuote(`API contract for ${moduleId}`)}
+paths: {}
+`
+    });
+  }
+
   filesToWrite.push({ path: manifestPath, content: manifestYaml });
   filesToWrite.push({ path: agentsPath, content: templateAgentsMd(moduleId, moduleType, description) });
   filesToWrite.push({ path: abilityPath, content: templateAbilityMd(moduleId) });
-  filesToWrite.push({ path: registryPath, content: JSON.stringify(defaultModuleContextRegistry(moduleId), null, 2) + '\n' });
+  filesToWrite.push({ path: registryPath, content: JSON.stringify(registry, null, 2) + '\n' });
   filesToWrite.push({ path: devDocsReadmePath, content: devDocsReadme });
   filesToWrite.push({ path: devDocsAgentsPath, content: templateDevDocsAgentsMd(moduleId) });
 

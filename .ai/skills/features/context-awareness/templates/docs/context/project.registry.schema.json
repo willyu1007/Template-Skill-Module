@@ -1,10 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Project Context Registry",
+  "title": "Project Context Registry (SSOT)",
+  "description": "Schema for project.registry.json and module interact/registry.json SSOT files. The derived docs/context/registry.json has its own schema (registry.schema.json).",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "version",
+    "moduleId",
     "updatedAt",
     "artifacts"
   ],
@@ -12,6 +14,10 @@
     "version": {
       "type": "integer",
       "const": 1
+    },
+    "moduleId": {
+      "type": "string",
+      "description": "Owner module id, or 'project' for project-level registry"
     },
     "updatedAt": {
       "type": "string",
@@ -23,15 +29,16 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "id",
+          "artifactId",
           "type",
           "path",
           "mode"
         ],
         "properties": {
-          "id": {
+          "artifactId": {
             "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$"
+            "description": "Unique artifact identifier within the module scope",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,62}[a-z0-9]$"
           },
           "type": {
             "type": "string",

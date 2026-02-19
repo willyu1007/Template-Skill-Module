@@ -62,7 +62,7 @@ paths: {}
     args: [
       ctlContext,
       'add-artifact',
-      '--id',
+      '--artifact-id',
       'test-api',
       '--type',
       'openapi',
@@ -120,7 +120,7 @@ paths: {}
   // 6) remove-artifact
   const removeArtifact = runCommand({
     cmd: 'node',
-    args: [ctlContext, 'remove-artifact', '--id', 'test-api', '--repo-root', rootDir],
+    args: [ctlContext, 'remove-artifact', '--artifact-id', 'test-api', '--repo-root', rootDir],
     evidenceDir: testDir,
     label: `${name}.remove-artifact`,
   });
@@ -131,7 +131,7 @@ paths: {}
 
   // Verify artifact removed from registry
   const registry = JSON.parse(fs.readFileSync(registryPath, 'utf8'));
-  const found = (registry.artifacts || []).find((a) => a.id === 'test-api');
+  const found = (registry.artifacts || []).find((a) => (a.artifactId ?? a.id) === 'test-api');
   if (found) {
     return { name, status: 'FAIL', error: 'test-api artifact still in registry after remove' };
   }

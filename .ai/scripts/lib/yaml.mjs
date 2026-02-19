@@ -14,14 +14,121 @@ import path from 'node:path';
 /**
  * Parse a YAML string into a JavaScript object.
  * Supports: scalars, objects, arrays, multi-line strings, quoted strings.
+ * Rejects: anchors (&), aliases (*), tags (!!), merge keys (<<).
  *
  * @param {string} raw - YAML content
  * @returns {any}
  */
 export function parseYaml(raw) {
+  _detectUnsupportedSyntax(raw);
   const lines = raw.replace(/\r\n/g, '\n').split('\n');
   const result = parseBlock(lines, 0, 0).value;
   return result;
+}
+
+/**
+ * Scan for YAML features this parser does not support and fail fast.
+ * Detected: anchors (&name), aliases (*name), tags (!!type), merge keys (<<).
+ * Only checks positions that are outside quoted strings to avoid false positives
+ * on Markdown emphasis (*bold*) or HTML entities (&amp;).
+ */
+function _detectUnsupportedSyntax(raw) {
+  const lines = raw.replace(/\r\n/g, '\n').split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const stripped = _stripQuotedContent(line);
+    if (/(?::\s+|^[\s-]*)\*\w/.test(stripped)) {
+      throw new Error(`YAML aliases (*) are not supported (line ${i + 1})`);
+    }
+    if (/(?::\s+|^[\s-]*|,\s*)&\w/.test(stripped)) {
+      throw new Error(`YAML anchors (&) are not supported (line ${i + 1})`);
+    }
+    if (/(?:^|\s)!!/.test(stripped)) {
+      throw new Error(`YAML tags (!!) are not supported (line ${i + 1})`);
+    }
+    if (/(?:^|\s)<<\s*:/.test(stripped)) {
+      throw new Error(`YAML merge keys (<<) are not supported (line ${i + 1})`);
+    }
+  }
+}
+
+/**
+ * Replace quoted string contents with spaces, preserving positions.
+ * Used by _detectUnsupportedSyntax to avoid false positives.
+ */
+function _stripQuotedContent(line) {
+  let result = '';
+  let inQuote = null;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuote) {
+      result += ' ';
+      if (ch === inQuote) inQuote = null;
+    } else if (ch === '"' || ch === "'") {
+      inQuote = ch;
+      result += ' ';
+    } else {
+      result += ch;
+    }
+  }
+  return result;
+}
+
+/**
+ * Strip inline YAML comments while respecting quoted strings.
+ * A '#' is only a comment if preceded by whitespace and outside quotes.
+ */
+function _stripCommentSafe(line) {
+  let inQuote = null;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuote) {
+      if (ch === inQuote) inQuote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      inQuote = ch;
+      continue;
+    }
+    if (ch === '#' && (i === 0 || /\s/.test(line[i - 1]))) {
+      return line.slice(0, i).trimEnd();
+    }
+  }
+  return line;
+}
+
+/**
+ * Find the key-value separator colon, skipping colons inside quoted strings.
+ * Returns the index of the separator colon, or -1 if not found.
+ */
+function _findKeyColon(str) {
+  let inQuote = null;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (inQuote) {
+      if (ch === inQuote) inQuote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      inQuote = ch;
+      continue;
+    }
+    if (ch === ':' && (i + 1 >= str.length || str[i + 1] === ' ' || str[i + 1] === '\t')) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Unquote a YAML key (strip surrounding single or double quotes).
+ */
+function _unquoteKey(key) {
+  const t = key.trim();
+  if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))) {
+    return t.slice(1, -1);
+  }
+  return t;
 }
 
 /**
@@ -35,7 +142,7 @@ function parseBlock(lines, startIdx, baseIndent) {
 
   while (idx < lines.length) {
     const line = lines[idx];
-    const trimmed = line.replace(/#.*$/, '').trimEnd(); // Strip comments
+    const trimmed = _stripCommentSafe(line).trimEnd();
     
     if (trimmed === '' || trimmed.match(/^\s*#/)) {
       idx++;
@@ -63,37 +170,33 @@ function parseBlock(lines, startIdx, baseIndent) {
       const dashIndent = line.indexOf('-');
       
       if (afterDash === '') {
-        // Nested block under array item
         const nested = parseBlock(lines, idx + 1, dashIndent + 2);
         result.push(nested.value);
         idx = nested.nextIdx;
-      } else if (afterDash.includes(':')) {
-        // Inline object in array
-        const colonIdx = afterDash.indexOf(':');
-        const key = afterDash.slice(0, colonIdx).trim();
+      } else if (_findKeyColon(afterDash) !== -1) {
+        const colonIdx = _findKeyColon(afterDash);
+        const key = _unquoteKey(afterDash.slice(0, colonIdx));
         const valueStr = afterDash.slice(colonIdx + 1).trim();
         
         if (valueStr === '' || valueStr === '|' || valueStr === '>') {
-          // Object with nested content
           const nested = parseBlock(lines, idx + 1, dashIndent + 2);
           const obj = { [key]: nested.value };
           
-          // Continue parsing sibling keys at same level
           let siblingIdx = nested.nextIdx;
           while (siblingIdx < lines.length) {
             const sibLine = lines[siblingIdx];
-            const sibTrimmed = sibLine.replace(/#.*$/, '').trimEnd();
+            const sibTrimmed = _stripCommentSafe(sibLine).trimEnd();
             if (sibTrimmed === '') {
               siblingIdx++;
               continue;
             }
             const sibIndent = sibLine.search(/\S/);
-            if (sibIndent <= dashIndent || sibTrimmed.startsWith('-')) {
+            if (sibIndent <= dashIndent || sibTrimmed.trimStart().startsWith('-')) {
               break;
             }
-            if (sibIndent === dashIndent + 2 && sibTrimmed.includes(':')) {
-              const sibColonIdx = sibTrimmed.indexOf(':');
-              const sibKey = sibTrimmed.slice(0, sibColonIdx).trim();
+            const sibColonIdx = _findKeyColon(sibTrimmed);
+            if (sibIndent === dashIndent + 2 && sibColonIdx !== -1) {
+              const sibKey = _unquoteKey(sibTrimmed.slice(0, sibColonIdx));
               const sibValue = sibTrimmed.slice(sibColonIdx + 1).trim();
               if (sibValue === '' || sibValue === '|' || sibValue === '>') {
                 const sibNested = parseBlock(lines, siblingIdx + 1, sibIndent + 2);
@@ -110,25 +213,23 @@ function parseBlock(lines, startIdx, baseIndent) {
           result.push(obj);
           idx = siblingIdx;
         } else {
-          // Simple key-value in array item, might have more keys
           const obj = { [key]: parseScalar(valueStr) };
           idx++;
           
-          // Check for sibling keys
           while (idx < lines.length) {
             const nextLine = lines[idx];
-            const nextTrimmed = nextLine.replace(/#.*$/, '').trimEnd();
+            const nextTrimmed = _stripCommentSafe(nextLine).trimEnd();
             if (nextTrimmed === '') {
               idx++;
               continue;
             }
             const nextIndent = nextLine.search(/\S/);
-            if (nextIndent <= dashIndent || nextTrimmed.startsWith('-')) {
+            if (nextIndent <= dashIndent || nextTrimmed.trimStart().startsWith('-')) {
               break;
             }
-            if (nextTrimmed.includes(':')) {
-              const nextColonIdx = nextTrimmed.indexOf(':');
-              const nextKey = nextTrimmed.slice(0, nextColonIdx).trim();
+            const nextColonIdx = _findKeyColon(nextTrimmed);
+            if (nextColonIdx !== -1) {
+              const nextKey = _unquoteKey(nextTrimmed.slice(0, nextColonIdx));
               const nextValue = nextTrimmed.slice(nextColonIdx + 1).trim();
               if (nextValue === '' || nextValue === '|' || nextValue === '>') {
                 const nested = parseBlock(lines, idx + 1, nextIndent + 2);
@@ -145,7 +246,6 @@ function parseBlock(lines, startIdx, baseIndent) {
           result.push(obj);
         }
       } else {
-        // Simple scalar in array
         result.push(parseScalar(afterDash));
         idx++;
       }
@@ -153,18 +253,17 @@ function parseBlock(lines, startIdx, baseIndent) {
     }
 
     // Key-value pair
-    if (trimmed.includes(':')) {
+    const colonIdx = _findKeyColon(trimmed);
+    if (colonIdx !== -1) {
       if (!isObject && result === null) {
         result = {};
         isObject = true;
       }
       
-      const colonIdx = trimmed.indexOf(':');
-      const key = trimmed.slice(0, colonIdx).trim();
+      const key = _unquoteKey(trimmed.slice(0, colonIdx));
       const valueStr = trimmed.slice(colonIdx + 1).trim();
       
       if (valueStr === '' || valueStr === '|' || valueStr === '>') {
-        // Nested block
         const nested = parseBlock(lines, idx + 1, indent + 2);
         result[key] = nested.value;
         idx = nested.nextIdx;
@@ -175,11 +274,9 @@ function parseBlock(lines, startIdx, baseIndent) {
         result[key] = {};
         idx++;
       } else if (valueStr.startsWith('[') && valueStr.endsWith(']')) {
-        // Inline array
         result[key] = parseInlineArray(valueStr);
         idx++;
       } else if (valueStr.startsWith('{') && valueStr.endsWith('}')) {
-        // Inline object
         result[key] = parseInlineObject(valueStr);
         idx++;
       } else {
@@ -197,6 +294,7 @@ function parseBlock(lines, startIdx, baseIndent) {
 
 /**
  * Parse a scalar value (string, number, boolean, null).
+ * Also handles inline flow collections ([], {}).
  */
 function parseScalar(str) {
   const trimmed = str.trim();
@@ -206,10 +304,32 @@ function parseScalar(str) {
   }
   if (trimmed === 'true') return true;
   if (trimmed === 'false') return false;
+  if (trimmed === '[]') return [];
+  if (trimmed === '{}') return {};
   
-  // Quoted string
-  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-      (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    return parseInlineArray(trimmed);
+  }
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    return parseInlineObject(trimmed);
+  }
+  
+  // Quoted string (single-pass unescape to avoid \\n → \n → newline regression)
+  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    return trimmed.slice(1, -1).replace(/\\(["\\nrt0a])/g, (_m, ch) => {
+      switch (ch) {
+        case '"': return '"';
+        case '\\': return '\\';
+        case 'n': return '\n';
+        case 'r': return '\r';
+        case 't': return '\t';
+        case '0': return '\0';
+        case 'a': return '\x07';
+        default: return ch;
+      }
+    });
+  }
+  if (trimmed.startsWith("'") && trimmed.endsWith("'")) {
     return trimmed.slice(1, -1);
   }
   

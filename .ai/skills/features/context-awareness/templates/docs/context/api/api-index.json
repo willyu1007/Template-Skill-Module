@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "generatedAt": null,
+  "sources": [],
+  "stats": {
+    "totalEndpoints": 0,
+    "totalModules": 0,
+    "byModule": {},
+    "byTag": {}
+  },
+  "endpoints": []
+}

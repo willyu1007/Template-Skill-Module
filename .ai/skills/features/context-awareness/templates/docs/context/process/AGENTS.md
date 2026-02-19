@@ -5,7 +5,7 @@ Store BPMN 2.0 process definitions under `docs/context/process/` (LLM-visible co
 
 ## Rules (MUST)
 
-- Each `.bpmn` file MUST be registered in `docs/context/registry.json` (use `node .ai/skills/features/context-awareness/scripts/ctl-context.mjs add-artifact ...`).
+- Each `.bpmn` file MUST be registered via `node .ai/skills/features/context-awareness/scripts/ctl-context.mjs add-artifact --artifact-id <id> --type bpmn --path <repo-relative-path>` (writes to SSOT `project.registry.json`; the derived `registry.json` is regenerated automatically).
 - After editing any `.bpmn`, run:
   - `node .ai/skills/features/context-awareness/scripts/ctl-context.mjs touch`
   - `node .ai/skills/features/context-awareness/scripts/ctl-context.mjs verify --strict`

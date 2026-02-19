@@ -2793,6 +2793,15 @@ function ensureContextAwarenessFeature(repoRoot, blueprint, apply, options = {})
     return result;
   }
 
+  // Compute checksums for any artifacts that lack them (template ships without checksums)
+  if (apply) {
+    const touchRes = runNodeScriptWithRepoRootFallback(repoRoot, ctlContext, ['touch', '--repo-root', repoRoot], true);
+    result.actions.push(touchRes);
+    if (touchRes.mode === 'failed') {
+      result.warnings.push('ctl-context touch failed after init (checksums may be stale).');
+    }
+  }
+
   // Optional verify
   if (verify && apply) {
     const verifyRes = runNodeScriptWithRepoRootFallback(repoRoot, ctlContext, ['verify', '--repo-root', repoRoot], apply);

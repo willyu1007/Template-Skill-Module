@@ -42,4 +42,12 @@ if git diff --cached --name-only | grep -qE '(^|/)dev-docs/'; then
   echo "[hook] Project hub(s) synchronized."
 fi
 
+# Auto-regenerate aggregated API Index when module OpenAPI files change (add or delete)
+if git diff --cached --name-only | grep -qE '^modules/.+/interact/openapi\.ya?ml$'; then
+  echo "[hook] Module OpenAPI changed — regenerating API Index..."
+  node .ai/scripts/ctl-api-index.mjs generate --touch
+  git add docs/context/api/api-index.json docs/context/api/API-INDEX.md 2>/dev/null || true
+  git add docs/context/registry.json docs/context/project.registry.json 2>/dev/null || true
+fi
+
 exit 0

@@ -88,17 +88,23 @@ node .ai/skills/features/context-awareness/scripts/ctl-context.mjs verify-config
 ## Artifact Commands
 
 ```bash
-# Add an artifact
-node .ai/skills/features/context-awareness/scripts/ctl-context.mjs add-artifact --id my-api --type openapi --path docs/context/api/my-api.yaml
+# Add a project-level artifact
+node .ai/skills/features/context-awareness/scripts/ctl-context.mjs add-artifact --artifact-id my-api --type openapi --path docs/context/api/my-api.yaml
+
+# Add a module-level artifact
+node .ai/skills/features/context-awareness/scripts/ctl-context.mjs add-artifact --module-id user-api --artifact-id openapi --type openapi --path modules/user-api/interact/openapi.yaml
 
 # Remove an artifact
-node .ai/skills/features/context-awareness/scripts/ctl-context.mjs remove-artifact --id old-api
+node .ai/skills/features/context-awareness/scripts/ctl-context.mjs remove-artifact --artifact-id old-api
 
 # Update checksums after editing artifacts
 node .ai/skills/features/context-awareness/scripts/ctl-context.mjs touch
 
-# List all artifacts
+# List all artifacts (SSOT)
 node .ai/skills/features/context-awareness/scripts/ctl-context.mjs list
+
+# List derived (aggregated) artifacts
+node .ai/skills/features/context-awareness/scripts/ctl-context.mjs list --derived
 ```
 
 ## Verification
