@@ -22,11 +22,14 @@
  *   touch             Recompute checksums in SSOT registries
  *   build             Build docs/context/registry.json (DERIVED)
  *   list              List artifacts (SSOT or derived)
- *   verify            Verify SSOT registries and checksums
+ *   verify            Verify SSOT registries, checksums, and glossary schema
  *   help              Show help
  *   add-env           Add a new environment (context awareness feature)
  *   list-envs         List all environments (context awareness feature)
  *   verify-config     Verify environment configuration (context awareness feature)
+ *   add-term          Add a term to docs/context/knowledge/glossary.json
+ *   remove-term       Remove a term from docs/context/knowledge/glossary.json
+ *   list-terms        List glossary terms
  */
 
 import fs from 'node:fs';
@@ -105,6 +108,25 @@ Commands:
     --env <string>              Environment to verify (optional, verifies all if omitted)
     --repo-root <path>          Repo root (default: cwd)
     Verify environment configuration.
+
+  add-term
+    --term <string>             Term name (required)
+    --definition <string>       Definition (required)
+    --scope <string>            Scope: "global" or a module name (optional)
+    --aliases <csv>             Comma-separated aliases (optional)
+    --see-also <csv>            Comma-separated related terms (optional)
+    --repo-root <path>          Repo root (default: cwd)
+    Add a term to docs/context/knowledge/glossary.json.
+
+  remove-term
+    --term <string>             Term name to remove (required)
+    --repo-root <path>          Repo root (default: cwd)
+    Remove a term from docs/context/knowledge/glossary.json.
+
+  list-terms
+    --repo-root <path>          Repo root (default: cwd)
+    --format <text|json>        Output format (default: text)
+    List all glossary terms.
 
 Examples:
   node .ai/skills/features/context-awareness/scripts/ctl-context.mjs init
@@ -377,7 +399,7 @@ function touchRegistry(repoRoot, absPath, { apply } = { apply: true }) {
     }
   }
 
-  if (apply) {
+  if (apply && changed) {
     registry.updatedAt = isoNow();
     writeJson(absPath, registry);
   }
@@ -727,6 +749,8 @@ function cmdTouch(repoRoot, opts) {
     process.exit(1);
   }
 
+  cmdBuild(repoRoot, { 'no-refresh': true });
+
   console.log(`[ok] touch complete (changed: ${changedAny})`);
 }
 
@@ -735,6 +759,16 @@ function cmdBuild(repoRoot, opts) {
   const outPath = getDerivedRegistryPath(repoRoot);
 
   const { derived, warnings, errors } = buildDerivedRegistry(repoRoot, { refresh });
+
+  const existing = readJsonOrNull(outPath);
+  if (existing) {
+    const stableNew = JSON.stringify({ ...derived, updatedAt: '__STABLE__' });
+    const stableOld = JSON.stringify({ ...existing, updatedAt: '__STABLE__' });
+    if (stableNew === stableOld) {
+      derived.updatedAt = existing.updatedAt;
+    }
+  }
+
   writeJson(outPath, derived);
 
   console.log(`[ok] wrote ${path.relative(repoRoot, outPath)} (refresh: ${refresh})`);
@@ -794,7 +828,7 @@ function cmdList(repoRoot, opts, format) {
   }
 }
 
-function cmdVerify(repoRoot, strict) {
+async function cmdVerify(repoRoot, strict) {
   const paths = [getProjectRegistryPath(repoRoot), ...discoverModuleRegistryPaths(repoRoot)];
   const warnings = [];
   const errors = [];
@@ -828,12 +862,46 @@ function cmdVerify(repoRoot, strict) {
     }
   }
 
+  // Derived registry freshness check
+  const derivedPath = getDerivedRegistryPath(repoRoot);
+  if (fs.existsSync(derivedPath)) {
+    const onDisk = readJsonOrNull(derivedPath);
+    const onDiskIds = new Set((onDisk?.artifacts || []).map(a => a.id || `${a.moduleId}:${a.artifactId}`));
+    const expectedIds = new Set();
+    for (const p of paths) {
+      const l = loadModuleRegistry(p);
+      if (!l.ok) continue;
+      for (const a of l.registry.artifacts || []) {
+        expectedIds.add(`${l.registry.moduleId}:${a.artifactId ?? a.id}`);
+      }
+    }
+    for (const eid of expectedIds) {
+      if (!onDiskIds.has(eid)) {
+        warnings.push(`Derived registry missing artifact: ${eid} (run: ctl-context build)`);
+      }
+    }
+    for (const did of onDiskIds) {
+      if (!expectedIds.has(did)) {
+        warnings.push(`Derived registry has stale artifact: ${did} (run: ctl-context build)`);
+      }
+    }
+  } else {
+    warnings.push(`Derived registry not found: ${path.relative(repoRoot, derivedPath)} (run: ctl-context build)`);
+  }
+
   // Feature-level verification: env registry and INDEX.md
   if (isContextAwarenessEnabled(repoRoot)) {
     const envRegistryPath = getEnvRegistryPath(repoRoot);
     if (!fs.existsSync(envRegistryPath)) warnings.push('environment-registry.json does not exist (run: ctl-context init).');
     const indexPath = path.join(getContextDir(repoRoot), 'INDEX.md');
     if (!fs.existsSync(indexPath)) warnings.push('INDEX.md does not exist (run: ctl-context init).');
+  }
+
+  // Validate glossary schema (if exists)
+  const glossaryIssues = await validateGlossarySchema(repoRoot);
+  for (const issue of glossaryIssues) {
+    if (issue.level === 'error') errors.push(issue.message);
+    else warnings.push(issue.message);
   }
 
   if (warnings.length > 0) {
@@ -953,10 +1021,253 @@ function cmdVerifyConfig(repoRoot, envId) {
 }
 
 // ============================================================================
+// Glossary Management
+// ============================================================================
+
+function getGlossaryPath(repoRoot) {
+  return path.join(getContextDir(repoRoot), 'knowledge', 'glossary.json');
+}
+
+function getGlossarySchemaPath(repoRoot) {
+  return path.join(getContextDir(repoRoot), 'knowledge', 'glossary.schema.json');
+}
+
+function loadGlossary(repoRoot) {
+  const gp = getGlossaryPath(repoRoot);
+  const data = readJsonOrNull(gp);
+  if (!data) return null;
+  return {
+    version: data.version || 1,
+    updatedAt: data.updatedAt || new Date().toISOString(),
+    terms: Array.isArray(data.terms) ? data.terms : []
+  };
+}
+
+function saveGlossary(repoRoot, glossary) {
+  glossary.updatedAt = new Date().toISOString();
+  writeJson(getGlossaryPath(repoRoot), glossary);
+}
+
+function cmdAddTerm(repoRoot, term, definition, scope, aliasesCsv, seeAlsoCsv) {
+  if (!term) die('[error] --term is required');
+  if (!definition) die('[error] --definition is required');
+
+  const glossary = loadGlossary(repoRoot);
+  if (!glossary) {
+    die('[error] glossary.json not found. Run init Stage C apply with contextAwareness=true.');
+  }
+
+  const termLower = term.trim().toLowerCase();
+  const existing = glossary.terms.findIndex(t => t.term.toLowerCase() === termLower);
+  if (existing >= 0) {
+    die(`[error] Term "${term}" already exists (case-insensitive match: "${glossary.terms[existing].term}"). Remove it first.`);
+  }
+
+  const entry = { term: term.trim(), definition: definition.trim() };
+  if (scope) entry.scope = scope.trim();
+  const aliases = parseCsv(aliasesCsv);
+  if (aliases.length > 0) entry.aliases = aliases;
+  const seeAlso = parseCsv(seeAlsoCsv);
+  if (seeAlso.length > 0) entry.see_also = seeAlso;
+
+  glossary.terms.push(entry);
+  saveGlossary(repoRoot, glossary);
+  console.log(`[ok] Added term: ${term.trim()}`);
+
+  cmdTouch(repoRoot, {});
+}
+
+function cmdRemoveTerm(repoRoot, term) {
+  if (!term) die('[error] --term is required');
+
+  const glossary = loadGlossary(repoRoot);
+  if (!glossary) {
+    die('[error] glossary.json not found. Run init Stage C apply with contextAwareness=true.');
+  }
+
+  const termLower = term.trim().toLowerCase();
+  const idx = glossary.terms.findIndex(t => t.term.toLowerCase() === termLower);
+  if (idx < 0) {
+    die(`[error] Term "${term}" not found.`);
+  }
+
+  const removed = glossary.terms.splice(idx, 1)[0];
+  saveGlossary(repoRoot, glossary);
+  console.log(`[ok] Removed term: ${removed.term}`);
+
+  cmdTouch(repoRoot, {});
+}
+
+function cmdListTerms(repoRoot, format) {
+  const glossary = loadGlossary(repoRoot);
+  if (!glossary) {
+    die('[error] glossary.json not found. Run init Stage C apply with contextAwareness=true.');
+  }
+
+  if (format === 'json') {
+    console.log(JSON.stringify(glossary.terms, null, 2));
+    return;
+  }
+
+  console.log(`Glossary (${glossary.terms.length} terms):\n`);
+  if (glossary.terms.length === 0) {
+    console.log('  (no terms defined)');
+    return;
+  }
+  for (const t of glossary.terms) {
+    console.log(`  [${t.term}] ${t.definition}`);
+    if (t.scope) console.log(`    Scope: ${t.scope}`);
+    if (t.aliases?.length) console.log(`    Aliases: ${t.aliases.join(', ')}`);
+    if (t.see_also?.length) console.log(`    See also: ${t.see_also.join(', ')}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Glossary schema validation — Ajv-first with built-in fallback
+// ---------------------------------------------------------------------------
+
+async function _tryAjvValidate(data, schema) {
+  try {
+    const ajvMod = await import('ajv');
+    const Ajv = ajvMod.default || ajvMod;
+    const ajv = new Ajv({ allErrors: true, strict: false });
+    try {
+      const fmtMod = await import('ajv-formats');
+      const addFormats = fmtMod.default || fmtMod;
+      addFormats(ajv);
+    } catch { /* ajv-formats optional */ }
+    const validate = ajv.compile(schema);
+    const valid = validate(data);
+    if (valid) return { available: true, issues: [] };
+    const issues = validate.errors.map(err => ({
+      level: 'error',
+      message: `glossary.json${err.instancePath}: ${err.message}`,
+    }));
+    return { available: true, issues };
+  } catch (err) {
+    if (err.code === 'ERR_MODULE_NOT_FOUND' || err.code === 'MODULE_NOT_FOUND') {
+      return { available: false, issues: [] };
+    }
+    return { available: true, issues: [{ level: 'error', message: `Ajv error: ${err.message}` }] };
+  }
+}
+
+function _checkType(value, expected) {
+  switch (expected) {
+    case 'object':  return typeof value === 'object' && value !== null && !Array.isArray(value);
+    case 'array':   return Array.isArray(value);
+    case 'string':  return typeof value === 'string';
+    case 'integer': return typeof value === 'number' && Number.isInteger(value);
+    case 'number':  return typeof value === 'number';
+    case 'boolean': return typeof value === 'boolean';
+    case 'null':    return value === null;
+    default:        return true;
+  }
+}
+
+function _validateNode(value, schema, nodePath, issues) {
+  if (!schema || typeof schema !== 'object') return;
+
+  if (schema.type && !_checkType(value, schema.type)) {
+    const actual = value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value;
+    issues.push({ level: 'error', message: `${nodePath}: expected type "${schema.type}", got "${actual}"` });
+    return;
+  }
+
+  if (schema.const !== undefined && value !== schema.const) {
+    issues.push({ level: 'error', message: `${nodePath}: must be ${JSON.stringify(schema.const)}, got ${JSON.stringify(value)}` });
+  }
+
+  if (typeof schema.minLength === 'number' && typeof value === 'string' && value.length < schema.minLength) {
+    issues.push({ level: 'error', message: `${nodePath}: string length ${value.length} below minimum ${schema.minLength}` });
+  }
+
+  if (schema.format === 'date-time' && typeof value === 'string') {
+    if (isNaN(Date.parse(value))) {
+      issues.push({ level: 'warning', message: `${nodePath}: value does not match date-time format` });
+    }
+  }
+
+  if (schema.type === 'object' && typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    if (Array.isArray(schema.required)) {
+      for (const key of schema.required) {
+        if (value[key] === undefined || value[key] === null) {
+          issues.push({ level: 'error', message: `${nodePath}: missing required property "${key}"` });
+        }
+      }
+    }
+    if (schema.properties) {
+      for (const [key, propSchema] of Object.entries(schema.properties)) {
+        if (value[key] !== undefined && value[key] !== null) {
+          _validateNode(value[key], propSchema, `${nodePath}.${key}`, issues);
+        }
+      }
+    }
+    if (schema.additionalProperties === false && schema.properties) {
+      const allowed = new Set(Object.keys(schema.properties));
+      for (const key of Object.keys(value)) {
+        if (!allowed.has(key)) {
+          issues.push({ level: 'error', message: `${nodePath}: unexpected property "${key}"` });
+        }
+      }
+    }
+  }
+
+  if (schema.type === 'array' && Array.isArray(value) && schema.items) {
+    for (let i = 0; i < value.length; i++) {
+      _validateNode(value[i], schema.items, `${nodePath}[${i}]`, issues);
+    }
+  }
+}
+
+async function validateGlossarySchema(repoRoot) {
+  const glossaryPath = getGlossaryPath(repoRoot);
+  if (!fs.existsSync(glossaryPath)) return [];
+
+  const raw = readJsonOrNull(glossaryPath);
+  if (!raw) return [{ level: 'error', message: 'glossary.json exists but failed to parse as JSON' }];
+
+  const schemaPath = getGlossarySchemaPath(repoRoot);
+  if (!fs.existsSync(schemaPath)) {
+    return [{ level: 'warning', message: 'glossary.schema.json not found — schema validation skipped' }];
+  }
+  const schema = readJsonOrNull(schemaPath);
+  if (!schema) {
+    return [{ level: 'error', message: 'glossary.schema.json exists but failed to parse — cannot validate glossary' }];
+  }
+
+  const ajvResult = await _tryAjvValidate(raw, schema);
+  const issues = [];
+
+  if (ajvResult.available) {
+    issues.push(...ajvResult.issues);
+  } else {
+    console.log('[info] Ajv not available — using built-in validator. For full JSON Schema draft-07 compliance: pnpm add -D ajv ajv-formats');
+    _validateNode(raw, schema, 'glossary.json', issues);
+  }
+
+  if (Array.isArray(raw.terms)) {
+    const seen = new Set();
+    for (let i = 0; i < raw.terms.length; i++) {
+      const t = raw.terms[i];
+      if (t?.term && typeof t.term === 'string') {
+        const lower = t.term.toLowerCase();
+        if (seen.has(lower)) {
+          issues.push({ level: 'error', message: `glossary.json.terms[${i}]: duplicate term "${t.term}" (case-insensitive)` });
+        }
+        seen.add(lower);
+      }
+    }
+  }
+
+  return issues;
+}
+
+// ============================================================================
 // Main
 // ============================================================================
 
-function main() {
+async function main() {
   const { command, opts } = parseArgs(process.argv);
   const repoRoot = path.resolve(opts['repo-root'] || process.cwd());
   const format = (opts['format'] || 'text').toLowerCase();
@@ -984,7 +1295,7 @@ function main() {
       cmdList(repoRoot, opts, format);
       break;
     case 'verify':
-      cmdVerify(repoRoot, !!opts['strict']);
+      await cmdVerify(repoRoot, !!opts['strict']);
       break;
     case 'add-env':
       cmdAddEnv(repoRoot, opts['id'], opts['description']);
@@ -994,6 +1305,15 @@ function main() {
       break;
     case 'verify-config':
       cmdVerifyConfig(repoRoot, opts['env']);
+      break;
+    case 'add-term':
+      cmdAddTerm(repoRoot, opts['term'], opts['definition'], opts['scope'], opts['aliases'], opts['see-also']);
+      break;
+    case 'remove-term':
+      cmdRemoveTerm(repoRoot, opts['term']);
+      break;
+    case 'list-terms':
+      cmdListTerms(repoRoot, format);
       break;
     default:
       console.error(`[error] Unknown command: ${command}`);

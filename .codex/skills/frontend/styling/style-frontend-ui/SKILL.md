@@ -1,6 +1,6 @@
 ---
 name: style-frontend-ui
-description: Style frontend UI consistently using a single primary approach (theme tokens, reusable patterns, and predictable component styles).
+description: Implement and normalize UI styling within an existing design system using theme tokens, reusable style primitives, responsive rules, and accessibility checks. Primary intent: styling execution consistency; can follow frontend-design when a creative direction needs maintainable implementation.
 category: frontend/styling
 ssot_path: .ai/skills/frontend/styling/style-frontend-ui
 ---

@@ -4,8 +4,9 @@
  */
 import * as apiIndexSmoke from './api-index-smoke.mjs';
 import * as apiIndexFocused from './api-index-focused.mjs';
+import * as qualityGateTests from './quality-gate-tests.mjs';
 
-const TESTS = [apiIndexSmoke, apiIndexFocused];
+const TESTS = [apiIndexSmoke, apiIndexFocused, qualityGateTests];
 
 export function run(ctx) {
   const results = [];

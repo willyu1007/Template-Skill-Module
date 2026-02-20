@@ -2793,6 +2793,18 @@ function ensureContextAwarenessFeature(repoRoot, blueprint, apply, options = {})
     return result;
   }
 
+  // Generate api-index from module/project OpenAPI files (ensures committed state matches CI-regenerated state)
+  if (apply) {
+    const apiIndexCtl = path.join(repoRoot, '.ai', 'scripts', 'ctl-api-index.mjs');
+    if (fs.existsSync(apiIndexCtl)) {
+      const genRes = runNodeScriptWithRepoRootFallback(repoRoot, apiIndexCtl, ['generate', '--touch'], true);
+      result.actions.push(genRes);
+      if (genRes.mode === 'failed') {
+        result.warnings.push('ctl-api-index generate failed after init (api-index may be stale).');
+      }
+    }
+  }
+
   // Compute checksums for any artifacts that lack them (template ships without checksums)
   if (apply) {
     const touchRes = runNodeScriptWithRepoRootFallback(repoRoot, ctlContext, ['touch', '--repo-root', repoRoot], true);

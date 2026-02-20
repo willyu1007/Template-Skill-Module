@@ -1,6 +1,6 @@
 ---
 name: manage-skill-packs
-description: Enable or disable skill packs via skillpacksctl and re-sync provider wrappers without manually editing the manifest.
+description: Enable or disable skill packs via ctl-skillpacks and re-sync provider wrappers without manually editing the manifest.
 category: workflows/skill-operation
 ssot_path: .ai/skills/workflows/skill-operation/manage-skill-packs
 ---

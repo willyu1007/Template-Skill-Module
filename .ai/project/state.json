@@ -4,7 +4,7 @@
   "updatedAt": "2025-12-25T14:14:14Z",
   "context": {
     "mode": "contract",
-    "enabled": false
+    "enabled": true
   },
   "features": {},
   "custom": {}

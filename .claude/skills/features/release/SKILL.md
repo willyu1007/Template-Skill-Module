@@ -1,6 +1,6 @@
 ---
 name: release
-description: Enable and operate the Release feature (release checklists + changelog conventions + releasectl) for consistent versioning.
+description: Enable and operate the Release feature (release checklists + changelog conventions + ctl-release) for consistent versioning.
 category: features
 ssot_path: .ai/skills/features/release
 ---

@@ -34,6 +34,36 @@
       }
     },
     {
+      "artifactId": "glossary",
+      "type": "json",
+      "path": "docs/context/knowledge/glossary.json",
+      "mode": "contract",
+      "format": "glossary-v1",
+      "tags": [
+        "glossary",
+        "llm"
+      ],
+      "source": {
+        "kind": "manual",
+        "notes": "Edit via ctl-context add-term/remove-term; then run ctl-context touch."
+      }
+    },
+    {
+      "artifactId": "architecture-principles",
+      "type": "markdown",
+      "path": "docs/context/knowledge/architecture-principles.md",
+      "mode": "contract",
+      "format": "architecture-principles-v1",
+      "tags": [
+        "architecture",
+        "llm"
+      ],
+      "source": {
+        "kind": "manual",
+        "notes": "Edit the Markdown file directly; then run ctl-context touch."
+      }
+    },
+    {
       "artifactId": "bpmn-example",
       "type": "bpmn",
       "path": "docs/context/process/example.bpmn",

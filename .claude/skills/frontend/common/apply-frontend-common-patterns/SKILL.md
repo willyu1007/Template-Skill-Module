@@ -1,6 +1,6 @@
 ---
 name: apply-frontend-common-patterns
-description: Apply common frontend patterns (React hooks, memoization, callbacks, derived state, controlled inputs) to keep UI predictable and performant.
+description: Apply local React patterns (derived state, memoization, callback stability, controlled inputs) to improve predictability and render efficiency inside components. Primary intent: component-internal logic quality and render behavior; complements but does not replace routing/data/styling skills.
 category: frontend/common
 ssot_path: .ai/skills/frontend/common/apply-frontend-common-patterns
 ---

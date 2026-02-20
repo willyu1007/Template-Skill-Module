@@ -1,6 +1,6 @@
 ---
 name: handle-frontend-loading-and-errors
-description: Handle frontend loading, empty, and error states consistently (skeletons/spinners, error boundaries, retries, and user-safe messages).
+description: Implement resilient loading/empty/error/permission/retry UX states for async interfaces with user-safe messaging and recoverable flows. Primary intent: failure-state UX quality; pairs with component, data-fetching, and UI-guideline skills when needed.
 category: frontend/ux
 ssot_path: .ai/skills/frontend/ux/handle-frontend-loading-and-errors
 ---

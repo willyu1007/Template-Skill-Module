@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "updatedAt": "2025-12-25T14:14:14Z",
+  "environments": [
+    {
+      "id": "dev",
+      "description": "Local development environment",
+      "database": {
+        "writable": true,
+        "migrations": true,
+        "seedData": true
+      },
+      "secrets": {
+        "source": ".env.local",
+        "notes": "Use local .env file for development"
+      },
+      "deployment": {
+        "allowed": false
+      }
+    },
+    {
+      "id": "staging",
+      "description": "Testing and QA environment",
+      "database": {
+        "writable": true,
+        "migrations": "review-required",
+        "seedData": false
+      },
+      "secrets": {
+        "source": "vault://staging/*",
+        "notes": "Secrets managed via vault or CI secrets"
+      },
+      "deployment": {
+        "allowed": true,
+        "approval": "optional"
+      }
+    },
+    {
+      "id": "prod",
+      "description": "Production environment",
+      "database": {
+        "writable": false,
+        "migrations": "change-request",
+        "seedData": false
+      },
+      "secrets": {
+        "source": "vault://prod/*",
+        "notes": "Production secrets require elevated access"
+      },
+      "deployment": {
+        "allowed": true,
+        "approval": "required"
+      }
+    }
+  ]
+}
+

@@ -42,12 +42,61 @@ if git diff --cached --name-only | grep -qE '(^|/)dev-docs/'; then
   echo "[hook] Project hub(s) synchronized."
 fi
 
+# Lint Markdown docs when any Markdown file is staged.
+if git diff --cached --name-only | grep -qE '\.md$'; then
+  if [ -f .ai/scripts/lint-docs.mjs ]; then
+    echo "[hook] Detected Markdown changes, running lint-docs..."
+    node .ai/scripts/lint-docs.mjs --path . --check-anchors
+  fi
+fi
+
 # Auto-regenerate aggregated API Index when module OpenAPI files change (add or delete)
 if git diff --cached --name-only | grep -qE '^modules/.+/interact/openapi\.ya?ml$'; then
+  # Run quality gate on each changed module OpenAPI file before regeneration
+  if [ -f .ai/scripts/ctl-openapi-quality.mjs ]; then
+    CHANGED_OPENAPIS=$(git diff --cached --name-only | grep -E '^modules/.+/interact/openapi\.ya?ml$')
+    for OFILE in $CHANGED_OPENAPIS; do
+      if [ -f "$OFILE" ]; then
+        echo "[hook] Running OpenAPI quality check on $OFILE..."
+        if ! node .ai/scripts/ctl-openapi-quality.mjs verify --source "$OFILE" --strict; then
+          echo "[hook] OpenAPI quality check failed for $OFILE. Fix issues before committing."
+          exit 1
+        fi
+      fi
+    done
+  fi
   echo "[hook] Module OpenAPI changed — regenerating API Index..."
   node .ai/scripts/ctl-api-index.mjs generate --touch
   git add docs/context/api/api-index.json docs/context/api/API-INDEX.md 2>/dev/null || true
   git add docs/context/registry.json docs/context/project.registry.json 2>/dev/null || true
+fi
+
+# Auto-regenerate API Index when project-level OpenAPI contract changes (add, modify, or delete)
+if git diff --cached --name-only | grep -qE '^docs/context/api/openapi\.ya?ml$'; then
+  # Quality gate: only when the file still exists (skip on deletion)
+  if [ -f .ai/scripts/ctl-openapi-quality.mjs ]; then
+    OPENAPI_FILE=""
+    if [ -f docs/context/api/openapi.yaml ]; then
+      OPENAPI_FILE="docs/context/api/openapi.yaml"
+    elif [ -f docs/context/api/openapi.yml ]; then
+      OPENAPI_FILE="docs/context/api/openapi.yml"
+    fi
+    if [ -n "$OPENAPI_FILE" ]; then
+      echo "[hook] Running OpenAPI quality check on $OPENAPI_FILE..."
+      if ! node .ai/scripts/ctl-openapi-quality.mjs verify --source "$OPENAPI_FILE" --strict; then
+        echo "[hook] OpenAPI quality check failed. Fix the issues above before committing."
+        exit 1
+      fi
+    fi
+  fi
+  # Regenerate api-index unconditionally (handles deletion by removing stale entries)
+  if [ -f .ai/scripts/ctl-api-index.mjs ]; then
+    echo "[hook] Detected project OpenAPI changes, regenerating API Index..."
+    node .ai/scripts/ctl-api-index.mjs generate --touch --repo-root .
+    git add docs/context/api/api-index.json docs/context/api/API-INDEX.md 2>/dev/null || true
+    git add docs/context/registry.json docs/context/project.registry.json 2>/dev/null || true
+    echo "[hook] API Index regenerated."
+  fi
 fi
 
 exit 0

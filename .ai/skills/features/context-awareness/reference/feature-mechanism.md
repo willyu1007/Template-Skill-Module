@@ -9,20 +9,28 @@
   - `node .ai/scripts/ctl-project-state.mjs` (project state/config)
   - `node .ai/skills/_meta/ctl-skillpacks.mjs` (skills pack switching + wrapper sync)
 - The goal is to make an LLM "context-aware" without relying on ad-hoc folder scans:
-  - The LLM reads `docs/context/INDEX.md` and `docs/context/registry.json` as the entry point.
+  - The LLM reads `docs/context/AGENTS.md` as the authoritative routing entrypoint (progressive loading protocol).
+  - `docs/context/INDEX.md` and `docs/context/registry.json` provide discovery.
+  - `docs/context/knowledge/glossary.json` provides domain term definitions.
+  - `docs/context/knowledge/architecture-principles.md` provides cross-cutting constraints.
   - Environment constraints are in `docs/context/config/environment-registry.json`.
   - CI can run `ctl-context verify --strict` to enforce "changes go through scripts".
+  - OpenAPI quality gate (`ctl-openapi-quality.mjs`) blocks semantically incomplete endpoints.
 
 ## What this feature writes (blast radius)
 
 New files/directories (created if missing):
 
 - `docs/context/**` (context artifacts and registry)
+- `docs/context/AGENTS.md` (LLM routing entrypoint)
+- `docs/context/knowledge/glossary.json` + `glossary.schema.json` (domain glossary)
+- `docs/context/knowledge/architecture-principles.md` (architecture constraints)
 - `docs/context/config/**` (environment registry)
 - `.ai/skills/features/context-awareness/**` (documentation for this feature)
 - `config/environments/**` (environment config templates)
 - `.ai/skills/features/context-awareness/scripts/ctl-context.mjs`
 - `.ai/scripts/ctl-project-state.mjs`
+- `.ai/scripts/ctl-openapi-quality.mjs` (OpenAPI semantic quality gate)
 - `.ai/skills/_meta/ctl-skillpacks.mjs` (pack controller)
 - `.ai/project/{state.json,state.schema.json}`
 - `.ai/skills/_meta/packs/context-core.json` (pack definition)

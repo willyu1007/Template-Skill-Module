@@ -1,6 +1,6 @@
 ---
 name: apply-frontend-ui-guidelines
-description: Apply cross-cutting frontend UI patterns across components, hooks, routing, data fetching, styling, and user-visible states.
+description: Orchestrate end-to-end frontend feature implementation across components, hooks, routing, data fetching, styling, and user-visible states with consistent architecture and verification. Primary intent: cross-cutting implementation alignment; pairs with specialized skills when one concern needs deeper treatment.
 category: frontend/common
 ssot_path: .ai/skills/frontend/common/apply-frontend-ui-guidelines
 ---

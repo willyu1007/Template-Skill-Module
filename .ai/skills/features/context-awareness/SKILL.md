@@ -15,6 +15,8 @@ The context-awareness feature standardizes how the project exposes:
 - Database schema contract (LLM-readable JSON)
 - Process contracts (BPMN)
 - Environment registry (what exists; policies; *no secrets*)
+- Domain glossary (structured term definitions)
+- Architecture principles (cross-cutting constraints and rejected alternatives)
 
 The main outcome is that the LLM can load a small number of canonical entry points and avoid fragile whole-repo discovery.
 
@@ -23,19 +25,27 @@ The main outcome is that the LLM can load a small number of canonical entry poin
 When enabled, the feature **materializes** these paths in the repo root:
 
 - `docs/context/**` (contracts + registry)
+- `docs/context/AGENTS.md` (LLM routing entrypoint with progressive loading protocol)
+- `docs/context/knowledge/glossary.json` (domain glossary — structured term definitions)
+- `docs/context/knowledge/glossary.schema.json` (glossary JSON Schema for verification)
+- `docs/context/knowledge/architecture-principles.md` (cross-cutting constraints and rejected alternatives)
 - `config/environments/**` (environment config templates; no secrets)
 
 And it assumes these controller scripts exist (they are part of the template SSOT under `.ai/`):
 
-- `node .ai/skills/features/context-awareness/scripts/ctl-context.mjs` — context artifacts + registry + environments
+- `node .ai/skills/features/context-awareness/scripts/ctl-context.mjs` — context artifacts + registry + environments + glossary
 - `node .ai/scripts/ctl-project-state.mjs` — project state (`.ai/project/state.json`)
+- `node .ai/scripts/ctl-openapi-quality.mjs` — OpenAPI semantic quality gate
 - `node .ai/skills/_meta/ctl-skillpacks.mjs` — skill pack switching + wrapper sync
 
 ## Canonical entry points for LLMs
 
-1. `docs/context/INDEX.md`
-2. `docs/context/registry.json`
-3. `docs/context/config/environment-registry.json`
+1. `docs/context/AGENTS.md` (authoritative LLM routing — progressive loading protocol)
+2. `docs/context/INDEX.md`
+3. `docs/context/registry.json`
+4. `docs/context/api/api-index.json` (API overview — read before per-module openapi.yaml)
+5. `docs/context/knowledge/glossary.json` (domain term definitions)
+6. `docs/context/config/environment-registry.json`
 
 If a DB schema exists, the canonical DB contract is:
 
@@ -57,6 +67,35 @@ node .ai/scripts/ctl-project-state.mjs set-context-mode contract
 node .ai/skills/features/context-awareness/scripts/ctl-context.mjs init
 node .ai/skills/features/context-awareness/scripts/ctl-context.mjs touch
 ```
+
+## Knowledge artifacts
+
+### Domain glossary (`docs/context/knowledge/glossary.json`)
+
+Structured JSON for project-specific term definitions. Manage via CLI:
+
+```bash
+node .ai/skills/features/context-awareness/scripts/ctl-context.mjs add-term --term "tenant" --definition "An isolated customer organization" --scope global --aliases "organization,org"
+node .ai/skills/features/context-awareness/scripts/ctl-context.mjs remove-term --term "tenant"
+node .ai/skills/features/context-awareness/scripts/ctl-context.mjs list-terms
+```
+
+Verification: `ctl-context verify --strict` validates glossary structure when the file exists.
+
+### Architecture principles (`docs/context/knowledge/architecture-principles.md`)
+
+Markdown file for cross-cutting rules and rejected alternatives. Edit directly, then run `ctl-context touch`.
+
+## OpenAPI semantic quality gate
+
+Validates per-module and project-level OpenAPI files for semantic completeness:
+
+```bash
+node .ai/scripts/ctl-openapi-quality.mjs verify --source modules/<id>/interact/openapi.yaml --strict
+node .ai/scripts/ctl-openapi-quality.mjs verify --discover-modules --strict
+```
+
+Checks: required fields (operationId/summary/tags/2xx), unique operationId, security scheme refs, path param declarations, `$ref` resolution. Optional enhancement: install `@apidevtools/swagger-parser` for full OpenAPI spec compliance.
 
 ## Operating rules
 

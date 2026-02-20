@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Project Context Registry (SSOT)",
-  "description": "Schema for project.registry.json and module interact/registry.json SSOT files. The derived docs/context/registry.json has its own schema (registry.schema.json).",
+  "description": "Schema for project.registry.json and module interact/registry.json SSOT files. The derived docs/context/registry.json has its own schema (_schemas/registry.schema.json).",
   "type": "object",
   "additionalProperties": false,
   "required": [

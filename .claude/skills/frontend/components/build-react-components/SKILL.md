@@ -1,6 +1,6 @@
 ---
 name: build-react-components
-description: Build maintainable React components with TypeScript using clear props, composition, and explicit UI states.
+description: Build or refactor React components with typed props, clear composition, and explicit interaction/loading/empty/error behavior. Primary intent: component contract and behavior correctness; pairs with styling or design-direction skills for visual decisions.
 category: frontend/components
 ssot_path: .ai/skills/frontend/components/build-react-components
 ---
