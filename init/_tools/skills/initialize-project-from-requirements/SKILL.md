@@ -150,6 +150,11 @@ Stage C materializes:
 5. Config generation has a single SSOT: `scripts/scaffold-configs.mjs`.
 6. Do not create dev-docs task bundles during initialization; use dev-docs after init completes.
 7. Keep `init/START-HERE.md` current as a one-screen "key inputs + pending questions" page (LLM-maintained). Refresh after pipeline commands and after new requirements input.
+8. Before running `cleanup-init`, you MUST pass the **Post-init LLM Doc Path Hygiene** gate:
+   - Scan active docs for `init/` routes and init-era onboarding instructions.
+   - Remove/replace init routes from active navigation docs.
+   - Preserve initialization history only under `docs/project/overview/**` (archive area).
+9. Do not use a one-step apply+cleanup shortcut (for example `apply --cleanup-init`) because it bypasses the required doc hygiene gate.
 
 ---
 
@@ -307,9 +312,42 @@ After the user reviews the Stage C results and explicitly approves, run:
 node init/_tools/skills/initialize-project-from-requirements/scripts/init-pipeline.mjs approve --stage C --repo-root .
 ```
 
-### 7) Optional: remove the init kit
+### 7) Post-init LLM Doc Path Hygiene (required before `cleanup-init`)
 
-When the user confirms the bootstrap kit is no longer needed:
+Run this gate after Stage C is approved and before removing `init/`.
+
+#### Scope (active docs)
+- Root docs: `AGENTS.md`, `README.md`, `QUICKSTART.md` (if present)
+- Current governance/navigation docs that users rely on as entry points
+- Exclude archived history docs under `docs/project/overview/**`
+
+#### Required cleanup rules
+1. MUST remove root `AGENTS.md` routes that point to `init/` (for example `Read init/AGENTS.md` and `init/` as a current key directory).
+2. MUST replace active links to `init/_tools/...` with resident entry points (typically root `AGENTS.md` and `README.md`, plus stable `.ai/scripts/*` commands when needed).
+3. MAY keep initialization history only in `docs/project/overview/**`.
+
+#### Verification (must pass)
+
+```bash
+rg -n --glob "!docs/project/overview/**" "init/" AGENTS.md README.md QUICKSTART.md docs
+```
+
+Pass condition:
+- No remaining `init/` route in active docs that is presented as a current workflow entry.
+
+### 8) Optional: remove the init kit
+
+After the doc hygiene gate passes and the user confirms the bootstrap kit is no longer needed, run:
+
+```bash
+node init/_tools/skills/initialize-project-from-requirements/scripts/init-pipeline.mjs cleanup-init \
+  --repo-root . \
+  --apply \
+  --i-understand \
+  --archive
+```
+
+If archive is explicitly not wanted:
 
 ```bash
 node init/_tools/skills/initialize-project-from-requirements/scripts/init-pipeline.mjs cleanup-init \
